@@ -4,7 +4,7 @@ import androidx.compose.runtime.Immutable
 import com.example.newproject30.data.local.entity.MoodEntry
 
 /**
- * Data representation for a single day's mood in the 7-day trend visualizer.
+ * Daily mood trend item for visualizer.
  */
 @Immutable
 data class DailyMoodTrend(
@@ -13,7 +13,7 @@ data class DailyMoodTrend(
 )
 
 /**
- * Item representing emotion distribution count and percentage.
+ * Breakdown item for emotion distribution.
  */
 @Immutable
 data class EmotionBreakdownItem(
@@ -23,13 +23,15 @@ data class EmotionBreakdownItem(
 )
 
 /**
- * UI State for the Dashboard & Analytics screen.
+ * UI State for the Dashboard & Analytics Screen.
  */
 @Immutable
 data class DashboardUiState(
     val isLoading: Boolean = true,
     val weeklyAverageMood: Double = 0.0,
     val currentStreakDays: Int = 0,
+    val totalCheckInCount: Int = 0,
+    val stabilityIndex: String = "Building Data 📊",
     val dominantEmotion: String = "N/A",
     val monthlyDominantEmotion: String = "N/A",
     val weeklyBreakdown: List<EmotionBreakdownItem> = emptyList(),
@@ -39,17 +41,16 @@ data class DashboardUiState(
     val isWeeklyBreakdownExpanded: Boolean = false,
     val isMonthlyBreakdownExpanded: Boolean = false,
     val weeklyTrend: List<DailyMoodTrend> = emptyList(),
-    val moodDistribution: Map<String, Int> = emptyMap(),
     val recentEntries: List<MoodEntry> = emptyList()
 )
 
 /**
- * User Intents for the Dashboard screen.
+ * User Intents for the Dashboard Screen.
  */
 sealed interface DashboardUiEvent {
-    data object Refresh : DashboardUiEvent
     data class DeleteEntry(val entryId: Long) : DashboardUiEvent
     data class ToggleBookmark(val entryId: Long) : DashboardUiEvent
     data object ToggleWeeklyBreakdown : DashboardUiEvent
     data object ToggleMonthlyBreakdown : DashboardUiEvent
+    data object Refresh : DashboardUiEvent
 }

@@ -128,7 +128,8 @@ class ContinuousSpeechManager(
         val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
         val text = matches?.firstOrNull()
         if (!text.isNullOrBlank()) {
-            onFinalResult(text)
+            val formattedText = SpeechTextFormatter.format(text)
+            onFinalResult(formattedText)
             onPartialResult("")
         }
 
@@ -152,8 +153,9 @@ class ContinuousSpeechManager(
     override fun onPartialResults(partialResults: Bundle?) {
         val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
         val partialText = matches?.firstOrNull()
-        if (partialText != null) {
-            onPartialResult(partialText)
+        if (!partialText.isNullOrBlank()) {
+            val formattedPartial = SpeechTextFormatter.format(partialText)
+            onPartialResult(formattedPartial)
         }
     }
 

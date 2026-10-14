@@ -5,21 +5,26 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.example.newproject30.data.local.dao.AnalyticsDao
+import com.example.newproject30.data.local.dao.CustomTagDao
 import com.example.newproject30.data.local.dao.MoodDao
+import com.example.newproject30.data.local.entity.CustomTag
 import com.example.newproject30.data.local.entity.MoodEntry
 
 /**
  * Main Room Database configuration for the application.
  */
 @Database(
-    entities = [MoodEntry::class],
-    version = 1,
+    entities = [MoodEntry::class, CustomTag::class],
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun moodDao(): MoodDao
+    abstract fun customTagDao(): CustomTagDao
+    abstract fun analyticsDao(): AnalyticsDao
 
     companion object {
         @Volatile
@@ -31,7 +36,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "mood_note_database"
-                ).build()
+                )
+                    .fallbackToDestructiveMigration(true)
+                    .build()
                 INSTANCE = instance
                 instance
             }

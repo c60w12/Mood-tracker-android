@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.newproject30.data.local.AppDatabase
+import com.example.newproject30.data.local.dao.MoodStats
 import com.example.newproject30.data.local.entity.MoodEntry
 import com.example.newproject30.data.repository.MoodRepository
 import com.example.newproject30.data.repository.MoodRepositoryImpl
@@ -21,9 +22,19 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+private data class AnalyticsTuple(
+    val breakdown14: List<EmotionBreakdownItem>,
+    val breakdown30: List<EmotionBreakdownItem>,
+    val stats7: MoodStats,
+    val totalCheckIns: Int,
+    val stabilityText: String,
+    val total14: Int,
+    val total30: Int
+)
+
 /**
- * ViewModel responsible for computing streak, weekly/monthly averages, and trend analytics for the Dashboard.
- * All computations run strictly on [Dispatchers.IO] to keep the UI thread completely jank-free.
+ * ViewModel responsible for computing streak, 100% offline Room SQL analytics, 14-day stability index, and emotion distribution.
+ * All computations run strictly on [Dispatchers.IO] to keep the UI thread jank-free.
  */
 class DashboardViewModel(
     private val repository: MoodRepository
@@ -32,58 +43,77 @@ class DashboardViewModel(
     private val _isWeeklyExpanded = MutableStateFlow(false)
     private val _isMonthlyExpanded = MutableStateFlow(false)
 
+    private val now = System.currentTimeMillis()
+    private val sevenDaysAgo = now - (7 * 24 * 3600 * 1000L)
+    private val fourteenDaysAgo = now - (14 * 24 * 3600 * 1000L)
+    private val thirtyDaysAgo = now - (30 * 24 * 3600 * 1000L)
+
+    private val analyticsFlow = combine(
+        repository.getEmotionCountsSince(fourteenDaysAgo),
+        repository.getEmotionCountsSince(thirtyDaysAgo),
+        repository.getMoodStatsSince(sevenDaysAgo),
+        repository.getMoodScoresSince(fourteenDaysAgo),
+        repository.getTotalCheckInCount()
+    ) { emotion14, emotion30, stats7, scores14, totalCheckIns ->
+        val total14 = emotion14.sumOf { it.count }
+        val breakdown14 = emotion14.map {
+            val pct = if (total14 > 0) it.count.toFloat() / total14 else 0f
+            EmotionBreakdownItem(it.primaryEmotion, it.count, pct)
+        }
+
+        val total30 = emotion30.sumOf { it.count }
+        val breakdown30 = emotion30.map {
+            val pct = if (total30 > 0) it.count.toFloat() / total30 else 0f
+            EmotionBreakdownItem(it.primaryEmotion, it.count, pct)
+        }
+
+        val stdDev = if (scores14.size >= 2) {
+            val mean = scores14.average()
+            val variance = scores14.sumOf { (it - mean) * (it - mean) } / scores14.size
+            kotlin.math.sqrt(variance)
+        } else null
+
+        val stabilityText = when {
+            stdDev == null -> "Building Data 📊"
+            stdDev < 0.7 -> "High Stability 🌿"
+            stdDev <= 1.3 -> "Moderate ⚖️"
+            else -> "Fluctuating 🌊"
+        }
+
+        AnalyticsTuple(
+            breakdown14 = breakdown14,
+            breakdown30 = breakdown30,
+            stats7 = stats7,
+            totalCheckIns = totalCheckIns,
+            stabilityText = stabilityText,
+            total14 = total14,
+            total30 = total30
+        )
+    }
+
     val uiState: StateFlow<DashboardUiState> = combine(
+        analyticsFlow,
+        repository.getAllTimestamps(),
         repository.getAllEntries(),
         _isWeeklyExpanded,
         _isMonthlyExpanded
-    ) { allEntries, weeklyExpanded, monthlyExpanded ->
-        val now = System.currentTimeMillis()
-        val sevenDaysAgo = now - (7 * 24 * 3600 * 1000L)
-        val thirtyDaysAgo = now - (30 * 24 * 3600 * 1000L)
-
-        val pastWeekEntries = allEntries.filter { it.timestamp >= sevenDaysAgo }
-        val pastMonthEntries = allEntries.filter { it.timestamp >= thirtyDaysAgo }
-
-        val weeklyAvg = if (pastWeekEntries.isNotEmpty()) {
-            pastWeekEntries.map { it.moodScore }.average()
-        } else {
-            0.0
-        }
-
-        // Weekly Breakdown & Majority Dominant Emotion
-        val weeklyGrouped = pastWeekEntries.groupBy { it.primaryEmotion }
-        val weeklyTotal = pastWeekEntries.size
-        val weeklyBreakdown = weeklyGrouped.map { (emotion, list) ->
-            val count = list.size
-            val pct = if (weeklyTotal > 0) count.toFloat() / weeklyTotal else 0f
-            EmotionBreakdownItem(emotion, count, pct)
-        }.sortedByDescending { it.count }
-        val weeklyDominant = weeklyBreakdown.firstOrNull()?.emotion ?: "N/A"
-
-        // Monthly Breakdown & Majority Dominant Emotion
-        val monthlyGrouped = pastMonthEntries.groupBy { it.primaryEmotion }
-        val monthlyTotal = pastMonthEntries.size
-        val monthlyBreakdown = monthlyGrouped.map { (emotion, list) ->
-            val count = list.size
-            val pct = if (monthlyTotal > 0) count.toFloat() / monthlyTotal else 0f
-            EmotionBreakdownItem(emotion, count, pct)
-        }.sortedByDescending { it.count }
-        val monthlyDominant = monthlyBreakdown.firstOrNull()?.emotion ?: "N/A"
-
-        val streak = calculateStreak(allEntries)
-        val trend = calculateWeeklyTrend(allEntries)
+    ) { analytics, timestamps, allEntries, weeklyExpanded, monthlyExpanded ->
+        val streak = calculateStreakFromTimestamps(timestamps)
         val recent = allEntries.take(3)
+        val trend = calculateWeeklyTrend(allEntries)
 
         DashboardUiState(
             isLoading = false,
-            weeklyAverageMood = weeklyAvg,
+            weeklyAverageMood = analytics.stats7.avgScore ?: 0.0,
             currentStreakDays = streak,
-            dominantEmotion = weeklyDominant,
-            monthlyDominantEmotion = monthlyDominant,
-            weeklyBreakdown = weeklyBreakdown,
-            monthlyBreakdown = monthlyBreakdown,
-            weeklyTotalEntries = weeklyTotal,
-            monthlyTotalEntries = monthlyTotal,
+            totalCheckInCount = analytics.totalCheckIns,
+            stabilityIndex = analytics.stabilityText,
+            dominantEmotion = analytics.breakdown14.firstOrNull()?.emotion ?: "N/A",
+            monthlyDominantEmotion = analytics.breakdown30.firstOrNull()?.emotion ?: "N/A",
+            weeklyBreakdown = analytics.breakdown14,
+            monthlyBreakdown = analytics.breakdown30,
+            weeklyTotalEntries = analytics.total14,
+            monthlyTotalEntries = analytics.total30,
             isWeeklyBreakdownExpanded = weeklyExpanded,
             isMonthlyBreakdownExpanded = monthlyExpanded,
             weeklyTrend = trend,
@@ -123,16 +153,16 @@ class DashboardViewModel(
             }
 
             is DashboardUiEvent.Refresh -> {
-                // Flow automatically updates
+                // Flow updates automatically
             }
         }
     }
 
-    private fun calculateStreak(entries: List<MoodEntry>): Int {
-        if (entries.isEmpty()) return 0
+    private fun calculateStreakFromTimestamps(timestamps: List<Long>): Int {
+        if (timestamps.isEmpty()) return 0
         val dateSdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        val entryDates = entries
-            .map { dateSdf.format(Date(it.timestamp)) }
+        val entryDates = timestamps
+            .map { dateSdf.format(Date(it)) }
             .distinct()
             .toSet()
 
@@ -189,7 +219,7 @@ class DashboardViewModel(
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 val database = AppDatabase.getDatabase(context.applicationContext)
-                val repository = MoodRepositoryImpl(database.moodDao())
+                val repository = MoodRepositoryImpl(database.moodDao(), database.customTagDao(), database.analyticsDao())
                 return DashboardViewModel(repository) as T
             }
         }

@@ -28,20 +28,25 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -73,27 +78,8 @@ private val RATING_ITEMS = listOf(
     RatingOption(score = 5, emoji = "😄", label = "Great")
 )
 
-private val PRIMARY_EMOTIONS = listOf(
-    "Calm",
-    "Anxious",
-    "Grateful",
-    "Exhausted",
-    "Energetic",
-    "Reflective",
-    "Focused",
-    "Overwhelmed"
-)
-
-private val EXTRA_TAGS = listOf(
-    "Work",
-    "Wellness",
-    "Mindfulness",
-    "Ideas",
-    "Reflections"
-)
-
 /**
- * Material 3 Modal Bottom Sheet for adding a new Mood & Note entry with continuous live voice transcription and manual controls.
+ * Material 3 Modal Bottom Sheet for adding a new Mood & Note entry with continuous live voice transcription and custom emotion tags.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -169,6 +155,49 @@ fun AddEntryBottomSheet(
         ),
         label = "MicScale"
     )
+
+    // AlertDialog to Create a New Custom Emotion or Context Tag
+    if (uiState.showAddTagDialog) {
+        val isEmotion = uiState.tagDialogCategory == "EMOTION"
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(AddEntryUiEvent.DismissAddTagDialog) },
+            title = {
+                Text(
+                    text = if (isEmotion) "Create New Primary Emotion" else "Create New Context Tag",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                OutlinedTextField(
+                    value = uiState.newTagInput,
+                    onValueChange = { viewModel.onEvent(AddEntryUiEvent.NewTagInputChanged(it)) },
+                    placeholder = { Text(if (isEmotion) "e.g. Inspired, Hopeful..." else "e.g. Creative, Exercise...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    )
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.onEvent(AddEntryUiEvent.SaveNewCustomTag) },
+                    enabled = uiState.newTagInput.isNotBlank()
+                ) {
+                    Text("Save & Select")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { viewModel.onEvent(AddEntryUiEvent.DismissAddTagDialog) }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     ModalBottomSheet(
         onDismissRequest = {
@@ -269,7 +298,7 @@ fun AddEntryBottomSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 2. Primary Emotion FilterChips
+            // 2. Dynamic Primary Emotion FilterChips + "+ Add Emotion" AssistChip
             Text(
                 text = "Primary Emotion",
                 style = MaterialTheme.typography.titleMedium,
@@ -283,12 +312,19 @@ fun AddEntryBottomSheet(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                PRIMARY_EMOTIONS.forEach { emotion ->
+                uiState.availableEmotions.forEach { emotion ->
                     val isSelected = uiState.primaryEmotion == emotion
                     FilterChip(
                         selected = isSelected,
                         onClick = { viewModel.onEvent(AddEntryUiEvent.SetPrimaryEmotion(emotion)) },
-                        label = { Text(emotion) },
+                        label = {
+                            Text(
+                                text = emotion,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
                         leadingIcon = if (isSelected) {
                             {
                                 Icon(
@@ -300,11 +336,31 @@ fun AddEntryBottomSheet(
                         } else null
                     )
                 }
+
+                // "+ Add Emotion" AssistChip
+                AssistChip(
+                    onClick = { viewModel.onEvent(AddEntryUiEvent.ShowAddTagDialog("EMOTION")) },
+                    label = {
+                        Text(
+                            text = "+ Add Emotion",
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Create Custom Emotion",
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 3. Category / Tag Selection Chips
+            // 3. Category / Contextual Tags Section
             Text(
                 text = "Tags / Context",
                 style = MaterialTheme.typography.titleMedium,
@@ -318,14 +374,54 @@ fun AddEntryBottomSheet(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                EXTRA_TAGS.forEach { tag ->
+                uiState.availableContextTags.forEach { tag ->
                     val isSelected = uiState.selectedTags.contains(tag)
-                    FilterChip(
+                    InputChip(
                         selected = isSelected,
                         onClick = { viewModel.onEvent(AddEntryUiEvent.ToggleTag(tag)) },
-                        label = { Text("#$tag") }
+                        label = {
+                            Text(
+                                text = "#$tag",
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        trailingIcon = if (isSelected) {
+                            {
+                                IconButton(
+                                    onClick = { viewModel.onEvent(AddEntryUiEvent.RemoveTag(tag)) },
+                                    modifier = Modifier.size(16.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Unselect $tag"
+                                    )
+                                }
+                            }
+                        } else null
                     )
                 }
+
+                // "+ Add Tag" AssistChip
+                AssistChip(
+                    onClick = { viewModel.onEvent(AddEntryUiEvent.ShowAddTagDialog("CONTEXT")) },
+                    label = {
+                        Text(
+                            text = "+ Add Tag",
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Create Custom Tag",
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))

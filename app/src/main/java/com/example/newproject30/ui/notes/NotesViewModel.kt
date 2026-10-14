@@ -5,7 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.newproject30.data.local.AppDatabase
-import com.example.newproject30.data.local.entity.MoodEntry
 import com.example.newproject30.data.repository.MoodRepository
 import com.example.newproject30.data.repository.MoodRepositoryImpl
 import kotlinx.coroutines.Dispatchers
@@ -13,7 +12,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -72,10 +70,6 @@ class NotesViewModel(
         initialValue = NotesUiState(isLoading = true)
     )
 
-    init {
-        seedInitialDataIfEmpty()
-    }
-
     /**
      * Handles incoming user events in accordance with MVI pattern.
      */
@@ -115,51 +109,12 @@ class NotesViewModel(
         }
     }
 
-    private fun seedInitialDataIfEmpty() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val existing = repository.getAllEntries().firstOrNull()
-            if (existing.isNullOrEmpty()) {
-                val now = System.currentTimeMillis()
-                val sampleEntries = listOf(
-                    MoodEntry(
-                        timestamp = now - (3600000 * 2),
-                        moodScore = 5,
-                        primaryEmotion = "Calm",
-                        content = "Completed a peaceful 30-minute meditation session in the garden. Feeling refreshed and grounded.",
-                        isVoiceTranscript = false,
-                        isBookmarked = true,
-                        tags = listOf("Mindfulness", "Wellness")
-                    ),
-                    MoodEntry(
-                        timestamp = now - (3600000 * 12),
-                        moodScore = 4,
-                        primaryEmotion = "Focused",
-                        content = "Voice note: Brainstormed architecture ideas for the new Jetpack Compose design system and navigation shell.",
-                        isVoiceTranscript = true,
-                        isBookmarked = false,
-                        tags = listOf("Work", "Ideas")
-                    ),
-                    MoodEntry(
-                        timestamp = now - (3600000 * 28),
-                        moodScore = 2,
-                        primaryEmotion = "Anxious",
-                        content = "Slightly overwhelmed with upcoming project deadlines. Taking deep breaths and breaking down tasks into smaller steps.",
-                        isVoiceTranscript = false,
-                        isBookmarked = true,
-                        tags = listOf("Work", "Reflections")
-                    )
-                )
-                sampleEntries.forEach { repository.insertEntry(it) }
-            }
-        }
-    }
-
     companion object {
         fun provideFactory(context: Context): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 val database = AppDatabase.getDatabase(context.applicationContext)
-                val repository = MoodRepositoryImpl(database.moodDao())
+                val repository = MoodRepositoryImpl(database.moodDao(), database.customTagDao(), database.analyticsDao())
                 return NotesViewModel(repository) as T
             }
         }

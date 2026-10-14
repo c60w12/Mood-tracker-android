@@ -2,6 +2,7 @@ package com.example.newproject30.ui.notes
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,6 +64,7 @@ import java.util.Locale
  */
 @Composable
 fun NotesScreen(
+    onEntryClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: NotesViewModel = viewModel(
         factory = NotesViewModel.provideFactory(LocalContext.current)
@@ -73,6 +75,7 @@ fun NotesScreen(
     NotesContent(
         uiState = uiState,
         onEvent = viewModel::onEvent,
+        onEntryClick = onEntryClick,
         modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
     )
 }
@@ -81,6 +84,7 @@ fun NotesScreen(
 fun NotesContent(
     uiState: NotesUiState,
     onEvent: (NotesUiEvent) -> Unit,
+    onEntryClick: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -152,7 +156,14 @@ fun NotesContent(
                     FilterChip(
                         selected = uiState.selectedCategory == null,
                         onClick = { onEvent(NotesUiEvent.SelectCategory(null)) },
-                        label = { Text("All") }
+                        label = {
+                            Text(
+                                text = "All",
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     )
                 }
 
@@ -163,7 +174,14 @@ fun NotesContent(
                     FilterChip(
                         selected = uiState.selectedCategory == category,
                         onClick = { onEvent(NotesUiEvent.SelectCategory(category)) },
-                        label = { Text("#$category") }
+                        label = {
+                            Text(
+                                text = "#$category",
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     )
                 }
             }
@@ -201,6 +219,7 @@ fun NotesContent(
                         ) { entry ->
                             NoteCard(
                                 entry = entry,
+                                onCardClick = { onEntryClick(entry.id) },
                                 onToggleBookmark = { onEvent(NotesUiEvent.ToggleBookmark(entry.id)) },
                                 onDeleteEntry = { onEvent(NotesUiEvent.DeleteEntry(entry.id)) }
                             )
@@ -213,13 +232,14 @@ fun NotesContent(
 }
 
 /**
- * Individual Note item card displaying entry details and actions.
+ * Individual Note item card displaying entry details and actions. Compressed with maxLines = 2.
  */
 @Composable
 fun NoteCard(
     entry: MoodEntry,
-    onToggleBookmark: () -> Unit,
-    onDeleteEntry: () -> Unit,
+    onCardClick: () -> Unit = {},
+    onToggleBookmark: () -> Unit = {},
+    onDeleteEntry: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val formattedDate = remember(entry.timestamp) {
@@ -228,7 +248,9 @@ fun NoteCard(
     }
 
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onCardClick() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer
@@ -246,11 +268,14 @@ fun NoteCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     AssistChip(
-                        onClick = { },
+                        onClick = onCardClick,
                         label = {
                             Text(
                                 text = entry.primaryEmotion,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     )
@@ -300,12 +325,12 @@ fun NoteCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Main Content Snippet
+            // Main Content Snippet compressed to maxLines = 2
             Text(
                 text = entry.content,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 4,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
 
@@ -331,6 +356,9 @@ fun NoteCard(
                                 text = "#$tag",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                             )
                         }

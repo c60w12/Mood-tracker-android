@@ -23,8 +23,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Star
@@ -53,11 +55,12 @@ import com.example.newproject30.ui.notes.NoteCard
 import java.util.Locale
 
 /**
- * Main Dashboard & Analytics screen composable showing streak, weekly trend, weekly/monthly highlights, and recent activity.
+ * Main Dashboard & Analytics screen composable showing 100% offline Room SQL metrics, streak, 14-day stability index, and emotion distribution.
  */
 @Composable
 fun DashboardScreen(
     onNavigateToNotes: () -> Unit,
+    onEntryClick: (Long) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: DashboardViewModel = viewModel(
         factory = DashboardViewModel.provideFactory(LocalContext.current)
@@ -69,6 +72,7 @@ fun DashboardScreen(
         uiState = uiState,
         onEvent = viewModel::onEvent,
         onNavigateToNotes = onNavigateToNotes,
+        onEntryClick = onEntryClick,
         modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
     )
 }
@@ -78,6 +82,7 @@ fun DashboardContent(
     uiState: DashboardUiState,
     onEvent: (DashboardUiEvent) -> Unit,
     onNavigateToNotes: () -> Unit,
+    onEntryClick: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (uiState.isLoading) {
@@ -98,19 +103,19 @@ fun DashboardContent(
 
             // 1. Top Section: Greeting & Title
             Text(
-                text = "Welcome Back! 👋",
+                text = "Analytics & Summary 👋",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
-                text = "Here is your mood & wellness summary for the past week.",
+                text = "100% offline Room SQL analytics and wellness insights.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
             )
 
-            // 2. Metrics Summary Row: Streak & Weekly Average
+            // 2. Metrics Summary Row 1: Streak & Check-in Count
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -159,12 +164,108 @@ fun DashboardContent(
                     }
                 }
 
-                // Metric Card 2: Weekly Avg Score
+                // Metric Card 2: Check-in Count
                 Card(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Filled.FormatListNumbered,
+                                    contentDescription = "Total Check-ins",
+                                    tint = MaterialTheme.colorScheme.onSecondary
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column {
+                            Text(
+                                text = "Total Entries",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Text(
+                                text = "${uiState.totalCheckInCount} Logged",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 3. Metrics Summary Row 2: Mood Stability & Weekly Average
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Metric Card 3: 14-Day Mood Stability
+                Card(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Filled.Equalizer,
+                                    contentDescription = "Stability",
+                                    tint = MaterialTheme.colorScheme.onTertiary
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column {
+                            Text(
+                                text = "14-Day Stability",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Text(
+                                text = uiState.stabilityIndex,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                }
+
+                // Metric Card 4: Weekly Avg Score
+                Card(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                     )
                 ) {
                     Row(
@@ -191,13 +292,13 @@ fun DashboardContent(
                             Text(
                                 text = "Weekly Avg",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = String.format(Locale.getDefault(), "%.1f / 5", uiState.weeklyAverageMood),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -206,7 +307,7 @@ fun DashboardContent(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 3. Analytics Section: 7-Day Trend Visualizer
+            // 4. Analytics Section: 7-Day Trend Visualizer
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
@@ -283,7 +384,7 @@ fun DashboardContent(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 4. "Weekly Highlight" Card (Clickable to expand breakdown)
+            // 5. "14-Day Emotion Breakdown" Card (Clickable to expand)
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -316,7 +417,7 @@ fun DashboardContent(
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Weekly Highlight ✨ (Tap for breakdown)",
+                                text = "14-Day Emotion Distribution (Tap for breakdown)",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer
                             )
@@ -327,7 +428,7 @@ fun DashboardContent(
                                 onClick = { onEvent(DashboardUiEvent.ToggleWeeklyBreakdown) },
                                 label = {
                                     Text(
-                                        text = "Dominant Mood: ${uiState.dominantEmotion}",
+                                        text = "Dominant: ${uiState.dominantEmotion}",
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -341,14 +442,14 @@ fun DashboardContent(
                         )
                     }
 
-                    // Accordion breakdown for Weekly Emotions
+                    // Accordion breakdown for 14-Day Emotions
                     AnimatedVisibility(
                         visible = uiState.isWeeklyBreakdownExpanded,
                         enter = expandVertically(),
                         exit = shrinkVertically()
                     ) {
                         EmotionBreakdownList(
-                            title = "7-Day Emotion Distribution",
+                            title = "14-Day Emotion Percentages",
                             items = uiState.weeklyBreakdown,
                             totalEntries = uiState.weeklyTotalEntries
                         )
@@ -358,7 +459,7 @@ fun DashboardContent(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 5. "Monthly Highlight" Card (Clickable to expand breakdown)
+            // 6. "30-Day Monthly Summary" Card (Clickable to expand)
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -391,7 +492,7 @@ fun DashboardContent(
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "30-Day Monthly Summary (Tap for breakdown)",
+                                text = "30-Day Emotion Summary (Tap for breakdown)",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -402,7 +503,7 @@ fun DashboardContent(
                                 onClick = { onEvent(DashboardUiEvent.ToggleMonthlyBreakdown) },
                                 label = {
                                     Text(
-                                        text = "Dominant Mood: ${uiState.monthlyDominantEmotion}",
+                                        text = "Dominant: ${uiState.monthlyDominantEmotion}",
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -416,14 +517,14 @@ fun DashboardContent(
                         )
                     }
 
-                    // Accordion breakdown for Monthly Emotions
+                    // Accordion breakdown for 30-Day Emotions
                     AnimatedVisibility(
                         visible = uiState.isMonthlyBreakdownExpanded,
                         enter = expandVertically(),
                         exit = shrinkVertically()
                     ) {
                         EmotionBreakdownList(
-                            title = "30-Day Emotion Distribution",
+                            title = "30-Day Emotion Percentages",
                             items = uiState.monthlyBreakdown,
                             totalEntries = uiState.monthlyTotalEntries
                         )
@@ -433,7 +534,7 @@ fun DashboardContent(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 6. Recent Activity Section
+            // 7. Recent Activity Section
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -477,6 +578,7 @@ fun DashboardContent(
                     uiState.recentEntries.forEach { entry ->
                         NoteCard(
                             entry = entry,
+                            onCardClick = { onEntryClick(entry.id) },
                             onToggleBookmark = { onEvent(DashboardUiEvent.ToggleBookmark(entry.id)) },
                             onDeleteEntry = { onEvent(DashboardUiEvent.DeleteEntry(entry.id)) }
                         )

@@ -5,12 +5,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.newproject30.data.local.AppDatabase
+import com.example.newproject30.data.local.entity.CustomTag
 import com.example.newproject30.data.local.entity.MoodEntry
 import com.example.newproject30.data.repository.MoodRepository
 import com.example.newproject30.data.repository.MoodRepositoryImpl
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -21,36 +26,51 @@ class AddEntryViewModel(
     private val repository: MoodRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(AddEntryUiState())
-    val uiState: StateFlow<AddEntryUiState> = _uiState.asStateFlow()
+    private val _baseState = MutableStateFlow(AddEntryUiState())
+
+    val uiState: StateFlow<AddEntryUiState> = combine(
+        _baseState,
+        repository.getCustomTagsByCategory("EMOTION"),
+        repository.getCustomTagsByCategory("CONTEXT")
+    ) { base, emotions, contextTags ->
+        val emotionNames = emotions.map { it.name }.distinct().sorted()
+        val contextTagNames = contextTags.map { it.name }.distinct().sorted()
+
+        base.copy(
+            availableEmotions = if (emotionNames.isNotEmpty()) emotionNames else base.availableEmotions,
+            availableContextTags = if (contextTagNames.isNotEmpty()) contextTagNames else base.availableContextTags
+        )
+    }
+    .flowOn(Dispatchers.IO)
+    .stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = AddEntryUiState()
+    )
 
     fun onEvent(event: AddEntryUiEvent) {
         when (event) {
             is AddEntryUiEvent.SetMoodScore -> {
-                _uiState.update { it.copy(moodScore = event.score) }
+                _baseState.update { it.copy(moodScore = event.score) }
             }
 
             is AddEntryUiEvent.SetPrimaryEmotion -> {
-                _uiState.update { it.copy(primaryEmotion = event.emotion) }
+                _baseState.update { it.copy(primaryEmotion = event.emotion) }
             }
 
             is AddEntryUiEvent.ContentChanged -> {
-                _uiState.update { it.copy(content = event.content, partialSpeechText = "") }
+                _baseState.update { it.copy(content = event.content, partialSpeechText = "") }
             }
 
             is AddEntryUiEvent.UpdatePartialSpeech -> {
-                _uiState.update { it.copy(partialSpeechText = event.text) }
+                _baseState.update { it.copy(partialSpeechText = event.text) }
             }
 
             is AddEntryUiEvent.CommitFinalSpeech -> {
-                _uiState.update { current ->
-                    val newContent = if (current.content.isBlank()) {
-                        event.text
-                    } else {
-                        "${current.content} ${event.text}"
-                    }
+                _baseState.update { current ->
+                    val updatedContent = SpeechTextFormatter.appendText(current.content, event.text)
                     current.copy(
-                        content = newContent,
+                        content = updatedContent,
                         partialSpeechText = "",
                         isVoiceTranscript = true
                     )
@@ -58,7 +78,7 @@ class AddEntryViewModel(
             }
 
             is AddEntryUiEvent.CancelSpeech -> {
-                _uiState.update { current ->
+                _baseState.update { current ->
                     current.copy(
                         partialSpeechText = "",
                         isRecording = false
@@ -67,7 +87,7 @@ class AddEntryViewModel(
             }
 
             is AddEntryUiEvent.ToggleTag -> {
-                _uiState.update { current ->
+                _baseState.update { current ->
                     val updatedTags = if (current.selectedTags.contains(event.tag)) {
                         current.selectedTags - event.tag
                     } else {
@@ -77,12 +97,57 @@ class AddEntryViewModel(
                 }
             }
 
+            is AddEntryUiEvent.RemoveTag -> {
+                _baseState.update { current ->
+                    current.copy(selectedTags = current.selectedTags - event.tag)
+                }
+            }
+
             is AddEntryUiEvent.SetPermissionGranted -> {
-                _uiState.update { it.copy(hasRecordAudioPermission = event.isGranted) }
+                _baseState.update { it.copy(hasRecordAudioPermission = event.isGranted) }
             }
 
             is AddEntryUiEvent.SetRecordingState -> {
-                _uiState.update { it.copy(isRecording = event.isRecording) }
+                _baseState.update { it.copy(isRecording = event.isRecording) }
+            }
+
+            is AddEntryUiEvent.ShowAddTagDialog -> {
+                _baseState.update { it.copy(showAddTagDialog = true, tagDialogCategory = event.category, newTagInput = "") }
+            }
+
+            is AddEntryUiEvent.DismissAddTagDialog -> {
+                _baseState.update { it.copy(showAddTagDialog = false, newTagInput = "") }
+            }
+
+            is AddEntryUiEvent.NewTagInputChanged -> {
+                _baseState.update { it.copy(newTagInput = event.text) }
+            }
+
+            is AddEntryUiEvent.SaveNewCustomTag -> {
+                val newTag = _baseState.value.newTagInput.trim()
+                val category = _baseState.value.tagDialogCategory
+                if (newTag.isNotBlank()) {
+                    viewModelScope.launch(Dispatchers.IO) {
+                        val customTag = CustomTag(name = newTag, isDefault = false, category = category)
+                        repository.insertCustomTag(customTag)
+
+                        _baseState.update { current ->
+                            if (category == "EMOTION") {
+                                current.copy(
+                                    primaryEmotion = newTag,
+                                    showAddTagDialog = false,
+                                    newTagInput = ""
+                                )
+                            } else {
+                                current.copy(
+                                    selectedTags = (current.selectedTags + newTag).distinct(),
+                                    showAddTagDialog = false,
+                                    newTagInput = ""
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             is AddEntryUiEvent.SaveEntry -> {
@@ -90,14 +155,14 @@ class AddEntryViewModel(
             }
 
             is AddEntryUiEvent.ResetSavedState -> {
-                _uiState.update { AddEntryUiState() }
+                _baseState.update { AddEntryUiState() }
             }
         }
     }
 
     private fun saveEntry() {
-        viewModelScope.launch {
-            val state = _uiState.value
+        viewModelScope.launch(Dispatchers.IO) {
+            val state = uiState.value
             val finalBodyText = state.displayContent.trim()
             if (finalBodyText.isNotBlank()) {
                 val combinedTags = (listOf(state.primaryEmotion) + state.selectedTags)
@@ -115,7 +180,7 @@ class AddEntryViewModel(
                 )
 
                 repository.insertEntry(entry)
-                _uiState.update { it.copy(isEntrySaved = true) }
+                _baseState.update { it.copy(isEntrySaved = true) }
             }
         }
     }
@@ -125,7 +190,7 @@ class AddEntryViewModel(
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 val database = AppDatabase.getDatabase(context.applicationContext)
-                val repository = MoodRepositoryImpl(database.moodDao())
+                val repository = MoodRepositoryImpl(database.moodDao(), database.customTagDao(), database.analyticsDao())
                 return AddEntryViewModel(repository) as T
             }
         }

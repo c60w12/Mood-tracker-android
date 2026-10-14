@@ -16,3 +16,6 @@ data object SettingsRoute
 
 @Serializable
 data object CustomizationRoute
+
+@Serializable
+data class EntryDetailRoute(val entryId: Long)

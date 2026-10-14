@@ -9,15 +9,13 @@ import androidx.compose.runtime.Immutable
  * @param showClearDataDialog Flag controlling visibility of the Clear All Data confirmation dialog.
  * @param exportedDataMessage Serialized JSON string ready for sharing/export, or null.
  * @param appVersion Current application version name and build code string.
- * @param developerMessage Optional toast/banner message after developer actions.
  */
 @Immutable
 data class SettingsUiState(
     val dailyRemindersEnabled: Boolean = false,
     val showClearDataDialog: Boolean = false,
     val exportedDataMessage: String? = null,
-    val appVersion: String = "1.0.0 (Build 100)",
-    val developerMessage: String? = null
+    val appVersion: String = "1.0.0 (Build 100)"
 )
 
 /**
@@ -30,8 +28,4 @@ sealed interface SettingsUiEvent {
     data object ConfirmClearData : SettingsUiEvent
     data object ExportDataJson : SettingsUiEvent
     data object ClearExportedDataMessage : SettingsUiEvent
-    data object SendTestNotification : SettingsUiEvent
-    data object SeedContinuousStreak : SettingsUiEvent
-    data object SeedBrokenStreak : SettingsUiEvent
-    data object ClearDeveloperMessage : SettingsUiEvent
 }

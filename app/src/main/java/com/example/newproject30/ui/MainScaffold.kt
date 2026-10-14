@@ -28,12 +28,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import com.example.newproject30.ui.addentry.AddEntryBottomSheet
 import com.example.newproject30.ui.customization.CustomizationScreen
 import com.example.newproject30.ui.dashboard.DashboardScreen
+import com.example.newproject30.ui.detail.EntryDetailScreen
 import com.example.newproject30.ui.navigation.BottomNavItem
 import com.example.newproject30.ui.navigation.CustomizationRoute
 import com.example.newproject30.ui.navigation.DashboardRoute
+import com.example.newproject30.ui.navigation.EntryDetailRoute
 import com.example.newproject30.ui.navigation.NotesRoute
 import com.example.newproject30.ui.navigation.SettingsRoute
 import com.example.newproject30.ui.notes.NotesScreen
@@ -120,17 +123,31 @@ fun MainScaffold(
                             launchSingleTop = true
                             restoreState = true
                         }
+                    },
+                    onEntryClick = { entryId ->
+                        navController.navigate(EntryDetailRoute(entryId))
                     }
                 )
             }
             composable<NotesRoute> {
-                NotesScreen()
+                NotesScreen(
+                    onEntryClick = { entryId ->
+                        navController.navigate(EntryDetailRoute(entryId))
+                    }
+                )
             }
             composable<CustomizationRoute> {
                 CustomizationScreen()
             }
             composable<SettingsRoute> {
                 SettingsScreen()
+            }
+            composable<EntryDetailRoute> { backStackEntry ->
+                val route: EntryDetailRoute = backStackEntry.toRoute()
+                EntryDetailScreen(
+                    entryId = route.entryId,
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
         }
 

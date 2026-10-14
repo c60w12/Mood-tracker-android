@@ -1,10 +1,13 @@
 package com.example.newproject30.data.repository
 
+import com.example.newproject30.data.local.dao.EmotionCount
+import com.example.newproject30.data.local.dao.MoodStats
+import com.example.newproject30.data.local.entity.CustomTag
 import com.example.newproject30.data.local.entity.MoodEntry
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Repository interface exposing pure Kotlin Flows for Mood & Note data.
+ * Repository interface exposing pure Kotlin Flows for Mood & Note data, Custom Tags, and Analytics.
  */
 interface MoodRepository {
 
@@ -53,4 +56,49 @@ interface MoodRepository {
      * Deletes a mood entry by its unique ID.
      */
     suspend fun deleteEntryById(id: Long)
+
+    /**
+     * Retrieves all default and user-created custom emotion & contextual tags.
+     */
+    fun getAllCustomTags(): Flow<List<CustomTag>>
+
+    /**
+     * Retrieves custom tags filtered by category ("EMOTION" or "CONTEXT").
+     */
+    fun getCustomTagsByCategory(category: String): Flow<List<CustomTag>>
+
+    /**
+     * Inserts or updates a custom tag in the local Room database.
+     */
+    suspend fun insertCustomTag(tag: CustomTag)
+
+    /**
+     * Deletes a custom tag from the database.
+     */
+    suspend fun deleteCustomTag(tag: CustomTag)
+
+    /**
+     * Targeted SQL aggregation query for primary emotion distribution counts.
+     */
+    fun getEmotionCountsSince(sinceTimestamp: Long): Flow<List<EmotionCount>>
+
+    /**
+     * Targeted SQL aggregation query for mood score stats (avg, min, max, totalCount).
+     */
+    fun getMoodStatsSince(sinceTimestamp: Long): Flow<MoodStats>
+
+    /**
+     * Targeted SQL query for raw scores since [sinceTimestamp] for variance calculation.
+     */
+    fun getMoodScoresSince(sinceTimestamp: Long): Flow<List<Int>>
+
+    /**
+     * Targeted SQL query for distinct timestamps for streak calculation.
+     */
+    fun getAllTimestamps(): Flow<List<Long>>
+
+    /**
+     * Targeted SQL query for total check-in count.
+     */
+    fun getTotalCheckInCount(): Flow<Int>
 }
