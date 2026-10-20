@@ -20,6 +20,9 @@ interface CustomTagDao {
     @Query("SELECT * FROM custom_tags WHERE category = :category ORDER BY isDefault DESC, name ASC")
     fun getCustomTagsByCategory(category: String): Flow<List<CustomTag>>
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertCustomTags(tags: List<CustomTag>)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCustomTag(tag: CustomTag)
 

@@ -7,10 +7,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.newproject30.data.local.AppDatabase
+import com.example.newproject30.data.local.dao.MoodDao
 import com.example.newproject30.data.preferences.UserPreferencesRepository
 import com.example.newproject30.data.reminder.ReminderScheduler
 import com.example.newproject30.data.repository.MoodRepository
 import com.example.newproject30.data.repository.MoodRepositoryImpl
+import com.example.newproject30.util.DebugDataSeeder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -23,9 +25,10 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /**
- * ViewModel managing settings, Storage Access Framework JSON data exports, clear data dialogs, and notification toggles.
+ * ViewModel managing settings, Storage Access Framework JSON data exports, clear data dialogs, notification toggles, and auto-start voice options.
  */
 class SettingsViewModel(
+    private val moodDao: MoodDao,
     private val repository: MoodRepository,
     private val preferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
@@ -37,17 +40,22 @@ class SettingsViewModel(
 
     private val _showClearDataDialog = MutableStateFlow(false)
     private val _snackbarMessage = MutableStateFlow<String?>(null)
+    private val _debugMessage = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<SettingsUiState> = combine(
         preferencesRepository.dailyRemindersEnabled,
+        preferencesRepository.autoStartVoiceOnOpen,
         _showClearDataDialog,
-        _snackbarMessage
-    ) { remindersEnabled, showDialog, snackbarMsg ->
+        _snackbarMessage,
+        _debugMessage
+    ) { remindersEnabled, autoVoice, showDialog, snackbarMsg, debugMsg ->
         SettingsUiState(
             dailyRemindersEnabled = remindersEnabled,
+            autoStartVoiceOnOpen = autoVoice,
             showClearDataDialog = showDialog,
             exportedDataMessage = snackbarMsg,
-            appVersion = "1.0.0 (Build 100)"
+            appVersion = "1.0.0 (Build 100)",
+            debugMessage = debugMsg
         )
     }.stateIn(
         scope = viewModelScope,
@@ -90,6 +98,12 @@ class SettingsViewModel(
                 }
             }
 
+            is SettingsUiEvent.ToggleAutoStartVoice -> {
+                viewModelScope.launch {
+                    preferencesRepository.setAutoStartVoiceOnOpen(event.enabled)
+                }
+            }
+
             is SettingsUiEvent.ShowClearDataDialog -> {
                 _showClearDataDialog.value = true
             }
@@ -99,11 +113,24 @@ class SettingsViewModel(
             }
 
             is SettingsUiEvent.ConfirmClearData -> {
-                viewModelScope.launch {
-                    val entries = repository.getAllEntries().first()
-                    entries.forEach { repository.deleteEntry(it) }
+                viewModelScope.launch(Dispatchers.IO) {
+                    repository.deleteAllEntries()
                     _showClearDataDialog.value = false
                     _snackbarMessage.value = "Database cleared cleanly!"
+                }
+            }
+
+            is SettingsUiEvent.SeedTestData -> {
+                viewModelScope.launch(Dispatchers.IO) {
+                    DebugDataSeeder.seedSyntheticEntries(moodDao, event.days)
+                    _debugMessage.value = "Seeded ${event.days} days of synthetic test entries!"
+                }
+            }
+
+            is SettingsUiEvent.ClearAllDebugEntries -> {
+                viewModelScope.launch(Dispatchers.IO) {
+                    DebugDataSeeder.clearAllEntries(moodDao)
+                    _debugMessage.value = "Cleared all entries from database!"
                 }
             }
 
@@ -113,6 +140,10 @@ class SettingsViewModel(
 
             is SettingsUiEvent.ClearExportedDataMessage -> {
                 _snackbarMessage.value = null
+            }
+
+            is SettingsUiEvent.ClearDebugMessage -> {
+                _debugMessage.value = null
             }
         }
     }
@@ -124,7 +155,7 @@ class SettingsViewModel(
                 val database = AppDatabase.getDatabase(context.applicationContext)
                 val repository = MoodRepositoryImpl(database.moodDao(), database.customTagDao(), database.analyticsDao())
                 val preferencesRepository = UserPreferencesRepository(context.applicationContext)
-                return SettingsViewModel(repository, preferencesRepository) as T
+                return SettingsViewModel(database.moodDao(), repository, preferencesRepository) as T
             }
         }
     }

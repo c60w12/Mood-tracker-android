@@ -1,6 +1,7 @@
 package com.example.newproject30.ui.notes
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -18,48 +19,51 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel managing UI State and User Intents for the Notes & Mood tracking screen.
- * Filtering logic executes on [Dispatchers.IO] to keep UI frame-rates smooth.
+ * Indexing and filtering operate strictly on Primary Emotions with explicit Logcat debugging.
  */
 class NotesViewModel(
     private val repository: MoodRepository
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
-    private val _selectedCategory = MutableStateFlow<String?>(null)
+    private val _selectedEmotion = MutableStateFlow<String?>(null)
     private val _showBookmarkedOnly = MutableStateFlow(false)
 
     val uiState: StateFlow<NotesUiState> = combine(
         repository.getAllEntries(),
+        repository.getCustomTagsByCategory("EMOTION"),
         _searchQuery,
-        _selectedCategory,
+        _selectedEmotion,
         _showBookmarkedOnly
-    ) { allEntries, query, selectedCat, bookmarkedOnly ->
-        // Extract all available categories from tags dynamically
-        val categories = allEntries
-            .flatMap { it.tags }
+    ) { allEntries, emotionTags, query, selectedEmotion, bookmarkedOnly ->
+        Log.d("NOTES_DEBUG", "Filtered by Primary Emotion: $selectedEmotion")
+
+        // Extract all primary emotions from saved custom tags and recorded entries
+        val emotions = (emotionTags.map { it.name } + allEntries.map { it.primaryEmotion })
             .distinct()
+            .filter { it.isNotBlank() }
             .sorted()
 
-        // Filter entries based on search, exact category containment, and bookmark filter
+        // Filter entries based on search, exact primaryEmotion match, and bookmark filter
         val filtered = allEntries.filter { entry ->
             val matchesSearch = query.isBlank() ||
                     entry.content.contains(query, ignoreCase = true) ||
                     entry.primaryEmotion.contains(query, ignoreCase = true) ||
                     entry.tags.any { it.contains(query, ignoreCase = true) }
 
-            val matchesCategory = selectedCat == null || entry.tags.any { it.equals(selectedCat, ignoreCase = true) }
+            val matchesEmotion = selectedEmotion == null || entry.primaryEmotion.equals(selectedEmotion, ignoreCase = true)
 
             val matchesBookmark = !bookmarkedOnly || entry.isBookmarked
 
-            matchesSearch && matchesCategory && matchesBookmark
+            matchesSearch && matchesEmotion && matchesBookmark
         }
 
         NotesUiState(
             isLoading = false,
             entries = filtered,
-            availableCategories = categories,
+            availableEmotions = emotions,
             searchQuery = query,
-            selectedCategory = selectedCat,
+            selectedEmotion = selectedEmotion,
             showBookmarkedOnly = bookmarkedOnly
         )
     }
@@ -70,21 +74,18 @@ class NotesViewModel(
         initialValue = NotesUiState(isLoading = true)
     )
 
-    /**
-     * Handles incoming user events in accordance with MVI pattern.
-     */
     fun onEvent(event: NotesUiEvent) {
         when (event) {
             is NotesUiEvent.SearchQueryChanged -> {
                 _searchQuery.value = event.query
             }
 
-            is NotesUiEvent.SelectCategory -> {
-                // Toggle selection if clicking the same category again
-                _selectedCategory.value = if (_selectedCategory.value == event.category) {
+            is NotesUiEvent.SelectEmotion -> {
+                // Toggle selection if clicking the same emotion again
+                _selectedEmotion.value = if (_selectedEmotion.value == event.emotion) {
                     null
                 } else {
-                    event.category
+                    event.emotion
                 }
             }
 

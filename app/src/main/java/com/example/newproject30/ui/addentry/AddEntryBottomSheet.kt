@@ -54,7 +54,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -79,12 +81,13 @@ private val RATING_ITEMS = listOf(
 )
 
 /**
- * Material 3 Modal Bottom Sheet for adding a new Mood & Note entry with continuous live voice transcription and custom emotion tags.
+ * Material 3 Modal Bottom Sheet for adding a new Mood & Note entry with continuous live voice transcription, custom tags, and hands-free voice commands.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddEntryBottomSheet(
     onDismiss: () -> Unit,
+    autoStartVoice: Boolean = false,
     modifier: Modifier = Modifier,
     viewModel: AddEntryViewModel = viewModel(
         factory = AddEntryViewModel.provideFactory(LocalContext.current)
@@ -93,14 +96,7 @@ fun AddEntryBottomSheet(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
-
-    // Automatically close bottom sheet when entry is saved
-    LaunchedEffect(uiState.isEntrySaved) {
-        if (uiState.isEntrySaved) {
-            onDismiss()
-            viewModel.onEvent(AddEntryUiEvent.ResetSavedState)
-        }
-    }
+    val haptic = LocalHapticFeedback.current
 
     // Continuous SpeechRecognizer Manager with live interim text streaming & auto-restart across pauses
     val voiceToTextManager = rememberContinuousSpeechManager(
@@ -141,6 +137,32 @@ fun AddEntryBottomSheet(
             } else {
                 permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
             }
+        }
+    }
+
+    // Automatically trigger voice dictation on launch if autoStartVoice is true
+    LaunchedEffect(autoStartVoice) {
+        if (autoStartVoice) {
+            val permissionCheck = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO
+            )
+            if (permissionCheck == PackageManager.PERMISSION_GRANTED) {
+                viewModel.onEvent(AddEntryUiEvent.SetPermissionGranted(true))
+                voiceToTextManager.startListening()
+            } else {
+                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
+    }
+
+    // Automatically close bottom sheet and trigger haptic feedback when entry is saved
+    LaunchedEffect(uiState.isEntrySaved) {
+        if (uiState.isEntrySaved) {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            voiceToTextManager.stopListening()
+            onDismiss()
+            viewModel.onEvent(AddEntryUiEvent.ResetSavedState)
         }
     }
 
@@ -298,7 +320,7 @@ fun AddEntryBottomSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 2. Dynamic Primary Emotion FilterChips + "+ Add Emotion" AssistChip
+            // 2. Dynamic Primary Emotion FilterChips + "Add Emotion" AssistChip
             Text(
                 text = "Primary Emotion",
                 style = MaterialTheme.typography.titleMedium,
@@ -337,12 +359,12 @@ fun AddEntryBottomSheet(
                     )
                 }
 
-                // "+ Add Emotion" AssistChip
+                // "Add Emotion" AssistChip
                 AssistChip(
                     onClick = { viewModel.onEvent(AddEntryUiEvent.ShowAddTagDialog("EMOTION")) },
                     label = {
                         Text(
-                            text = "+ Add Emotion",
+                            text = "Add Emotion",
                             maxLines = 1,
                             softWrap = false,
                             overflow = TextOverflow.Ellipsis
@@ -403,12 +425,12 @@ fun AddEntryBottomSheet(
                     )
                 }
 
-                // "+ Add Tag" AssistChip
+                // "Add Tag" AssistChip
                 AssistChip(
                     onClick = { viewModel.onEvent(AddEntryUiEvent.ShowAddTagDialog("CONTEXT")) },
                     label = {
                         Text(
-                            text = "+ Add Tag",
+                            text = "Add Tag",
                             maxLines = 1,
                             softWrap = false,
                             overflow = TextOverflow.Ellipsis
@@ -487,7 +509,7 @@ fun AddEntryBottomSheet(
             OutlinedTextField(
                 value = uiState.displayContent,
                 onValueChange = { viewModel.onEvent(AddEntryUiEvent.ContentChanged(it)) },
-                placeholder = { Text("Type your note or tap the microphone icon for continuous dictation...") },
+                placeholder = { Text("Type your note or speak freely (say 'save entry' to finish hands-free)...") },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(140.dp),
@@ -509,7 +531,7 @@ fun AddEntryBottomSheet(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = if (uiState.isRecording) "Listening live... Speak freely" else "Voice transcript attached",
+                        text = if (uiState.isRecording) "Listening live... Say 'save entry' to auto-save" else "Voice transcript attached",
                         style = MaterialTheme.typography.labelSmall,
                         color = if (uiState.isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                     )

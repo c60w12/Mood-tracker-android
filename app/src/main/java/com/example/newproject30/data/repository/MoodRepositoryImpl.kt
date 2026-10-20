@@ -1,5 +1,6 @@
 package com.example.newproject30.data.repository
 
+import android.util.Log
 import com.example.newproject30.data.local.dao.AnalyticsDao
 import com.example.newproject30.data.local.dao.CustomTagDao
 import com.example.newproject30.data.local.dao.EmotionCount
@@ -8,6 +9,7 @@ import com.example.newproject30.data.local.dao.MoodStats
 import com.example.newproject30.data.local.entity.CustomTag
 import com.example.newproject30.data.local.entity.MoodEntry
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 
 private val DEFAULT_EMOTION_TAGS = listOf(
@@ -37,6 +39,9 @@ class MoodRepositoryImpl(
     private val customTagDao: CustomTagDao,
     private val analyticsDao: AnalyticsDao
 ) : MoodRepository {
+
+    @Volatile
+    private var isDefaultTagsChecked = false
 
     override fun getAllEntries(): Flow<List<MoodEntry>> {
         return moodDao.getAllEntries()
@@ -74,6 +79,10 @@ class MoodRepositoryImpl(
         moodDao.deleteEntryById(id)
     }
 
+    override suspend fun deleteAllEntries() {
+        moodDao.deleteAllEntries()
+    }
+
     override fun getAllCustomTags(): Flow<List<CustomTag>> {
         return customTagDao.getAllCustomTags().onStart {
             ensureDefaultTagsExist()
@@ -95,7 +104,10 @@ class MoodRepositoryImpl(
     }
 
     override fun getEmotionCountsSince(sinceTimestamp: Long): Flow<List<EmotionCount>> {
-        return analyticsDao.getEmotionCountsSince(sinceTimestamp)
+        Log.d("ANALYTICS_DEBUG", "Querying Primary Emotions since timestamp: $sinceTimestamp")
+        return analyticsDao.getEmotionCountsSince(sinceTimestamp).onEach { list ->
+            Log.d("ANALYTICS_DEBUG", "Fetched Primary Emotions: ${list.map { "${it.emotion}:${it.count}" }}")
+        }
     }
 
     override fun getMoodStatsSince(sinceTimestamp: Long): Flow<MoodStats> {
@@ -115,25 +127,25 @@ class MoodRepositoryImpl(
     }
 
     private suspend fun ensureDefaultTagsExist() {
-        DEFAULT_EMOTION_TAGS.forEach { name ->
-            customTagDao.insertCustomTag(
-                CustomTag(
-                    id = "default_emotion_$name",
-                    name = name,
-                    isDefault = true,
-                    category = "EMOTION"
-                )
+        if (isDefaultTagsChecked) return
+        isDefaultTagsChecked = true
+
+        val defaultTags = DEFAULT_EMOTION_TAGS.map { name ->
+            CustomTag(
+                id = "default_emotion_$name",
+                name = name,
+                isDefault = true,
+                category = "EMOTION"
+            )
+        } + DEFAULT_CONTEXT_TAGS.map { name ->
+            CustomTag(
+                id = "default_context_$name",
+                name = name,
+                isDefault = true,
+                category = "CONTEXT"
             )
         }
-        DEFAULT_CONTEXT_TAGS.forEach { name ->
-            customTagDao.insertCustomTag(
-                CustomTag(
-                    id = "default_context_$name",
-                    name = name,
-                    isDefault = true,
-                    category = "CONTEXT"
-                )
-            )
-        }
+
+        customTagDao.insertCustomTags(defaultTags)
     }
 }

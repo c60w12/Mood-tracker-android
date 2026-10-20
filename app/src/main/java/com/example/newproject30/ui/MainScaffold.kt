@@ -45,17 +45,19 @@ import com.example.newproject30.ui.settings.SettingsScreen
 /**
  * Main application navigation shell with Material 3 NavigationBar, FAB, and Add Entry ModalBottomSheet.
  *
+ * @param autoStartVoice Flag indicating if voice dictation sheet should open automatically on launch.
  * @param modifier Modifier for root container layout styling.
  * @param navController Navigation controller managing backstack and routes.
  */
 @Composable
 fun MainScaffold(
+    autoStartVoice: Boolean = false,
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController()
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
-    var showAddEntrySheet by rememberSaveable { mutableStateOf(false) }
+    var showAddEntrySheet by rememberSaveable { mutableStateOf(autoStartVoice) }
 
     val onNavigateToDestination: (BottomNavItem) -> Unit = { item ->
         navController.navigate(item.route) {
@@ -151,10 +153,11 @@ fun MainScaffold(
             }
         }
 
-        // Display Add Entry / Voice Note Modal Bottom Sheet when FAB is clicked
+        // Display Add Entry / Voice Note Modal Bottom Sheet when FAB is clicked or on quick action launch
         if (showAddEntrySheet) {
             AddEntryBottomSheet(
-                onDismiss = { showAddEntrySheet = false }
+                onDismiss = { showAddEntrySheet = false },
+                autoStartVoice = autoStartVoice
             )
         }
     }

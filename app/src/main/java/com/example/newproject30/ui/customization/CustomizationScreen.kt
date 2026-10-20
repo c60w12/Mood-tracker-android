@@ -217,7 +217,7 @@ fun CustomizationScreen(
                         onClick = { viewModel.onEvent(CustomizationUiEvent.ShowAddDialog("EMOTION")) },
                         label = {
                             Text(
-                                text = "+ Add Emotion",
+                                text = "Add Emotion",
                                 maxLines = 1,
                                 softWrap = false,
                                 overflow = TextOverflow.Ellipsis
@@ -313,7 +313,7 @@ fun CustomizationScreen(
                         onClick = { viewModel.onEvent(CustomizationUiEvent.ShowAddDialog("CONTEXT")) },
                         label = {
                             Text(
-                                text = "+ Add Tag",
+                                text = "Add Tag",
                                 maxLines = 1,
                                 softWrap = false,
                                 overflow = TextOverflow.Ellipsis

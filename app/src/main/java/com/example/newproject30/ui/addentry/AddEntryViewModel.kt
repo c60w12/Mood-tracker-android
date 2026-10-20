@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel managing state and persistence for creating a new Mood / Voice Note entry.
+ * Parses voice commands ("save entry", "save note", "cancel entry", "clear note") for hands-free workflow.
  */
 class AddEntryViewModel(
     private val repository: MoodRepository
@@ -68,12 +69,44 @@ class AddEntryViewModel(
 
             is AddEntryUiEvent.CommitFinalSpeech -> {
                 _baseState.update { current ->
-                    val updatedContent = SpeechTextFormatter.appendText(current.content, event.text)
-                    current.copy(
-                        content = updatedContent,
-                        partialSpeechText = "",
-                        isVoiceTranscript = true
-                    )
+                    val lower = event.text.lowercase()
+                    when {
+                        lower.contains("cancel entry") || lower.contains("clear note") -> {
+                            current.copy(
+                                content = "",
+                                partialSpeechText = "",
+                                isRecording = false
+                            )
+                        }
+
+                        lower.contains("save entry") || lower.contains("save note") -> {
+                            val cleanedText = event.text
+                                .replace(Regex("(?i)save\\s+entry"), "")
+                                .replace(Regex("(?i)save\\s+note"), "")
+
+                            val updatedContent = SpeechTextFormatter.appendText(current.content, cleanedText)
+                            val finalBodyText = updatedContent.ifBlank { current.displayContent }.trim()
+
+                            if (finalBodyText.isNotBlank()) {
+                                saveEntryDirectly(finalBodyText)
+                            }
+
+                            current.copy(
+                                content = finalBodyText,
+                                partialSpeechText = "",
+                                isRecording = false
+                            )
+                        }
+
+                        else -> {
+                            val updatedContent = SpeechTextFormatter.appendText(current.content, event.text)
+                            current.copy(
+                                content = updatedContent,
+                                partialSpeechText = "",
+                                isVoiceTranscript = true
+                            )
+                        }
+                    }
                 }
             }
 
@@ -160,27 +193,34 @@ class AddEntryViewModel(
         }
     }
 
+    private fun saveEntryDirectly(bodyText: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val state = uiState.value
+            val combinedTags = (listOf(state.primaryEmotion) + state.selectedTags)
+                .distinct()
+                .filter { it.isNotBlank() }
+
+            val entry = MoodEntry(
+                timestamp = System.currentTimeMillis(),
+                moodScore = state.moodScore,
+                primaryEmotion = state.primaryEmotion,
+                content = bodyText,
+                isVoiceTranscript = true,
+                isBookmarked = false,
+                tags = combinedTags
+            )
+
+            repository.insertEntry(entry)
+            _baseState.update { it.copy(isEntrySaved = true) }
+        }
+    }
+
     private fun saveEntry() {
         viewModelScope.launch(Dispatchers.IO) {
             val state = uiState.value
             val finalBodyText = state.displayContent.trim()
             if (finalBodyText.isNotBlank()) {
-                val combinedTags = (listOf(state.primaryEmotion) + state.selectedTags)
-                    .distinct()
-                    .filter { it.isNotBlank() }
-
-                val entry = MoodEntry(
-                    timestamp = System.currentTimeMillis(),
-                    moodScore = state.moodScore,
-                    primaryEmotion = state.primaryEmotion,
-                    content = finalBodyText,
-                    isVoiceTranscript = state.isVoiceTranscript,
-                    isBookmarked = false,
-                    tags = combinedTags
-                )
-
-                repository.insertEntry(entry)
-                _baseState.update { it.copy(isEntrySaved = true) }
+                saveEntryDirectly(finalBodyText)
             }
         }
     }

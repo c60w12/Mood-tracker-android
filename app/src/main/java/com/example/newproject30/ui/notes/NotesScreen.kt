@@ -60,7 +60,7 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Main Notes screen composable with search, category filter chips, and bookmark toggling.
+ * Main Notes screen composable with search, primary emotion filter chips, and bookmark toggling.
  */
 @Composable
 fun NotesScreen(
@@ -143,8 +143,8 @@ fun NotesContent(
             }
         }
 
-        // Horizontal Category Filter Chips
-        AnimatedVisibility(visible = uiState.availableCategories.isNotEmpty()) {
+        // Horizontal Primary Emotion Filter Chips
+        AnimatedVisibility(visible = uiState.availableEmotions.isNotEmpty()) {
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -152,10 +152,10 @@ fun NotesContent(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(horizontal = 4.dp)
             ) {
-                item(key = "all_category") {
+                item(key = "all_emotion") {
                     FilterChip(
-                        selected = uiState.selectedCategory == null,
-                        onClick = { onEvent(NotesUiEvent.SelectCategory(null)) },
+                        selected = uiState.selectedEmotion == null,
+                        onClick = { onEvent(NotesUiEvent.SelectEmotion(null)) },
                         label = {
                             Text(
                                 text = "All",
@@ -168,15 +168,15 @@ fun NotesContent(
                 }
 
                 items(
-                    items = uiState.availableCategories,
+                    items = uiState.availableEmotions,
                     key = { it }
-                ) { category ->
+                ) { emotion ->
                     FilterChip(
-                        selected = uiState.selectedCategory == category,
-                        onClick = { onEvent(NotesUiEvent.SelectCategory(category)) },
+                        selected = uiState.selectedEmotion == emotion,
+                        onClick = { onEvent(NotesUiEvent.SelectEmotion(emotion)) },
                         label = {
                             Text(
-                                text = "#$category",
+                                text = emotion,
                                 maxLines = 1,
                                 softWrap = false,
                                 overflow = TextOverflow.Ellipsis
@@ -202,7 +202,7 @@ fun NotesContent(
                 uiState.entries.isEmpty() -> {
                     EmptyNotesState(
                         searchQuery = uiState.searchQuery,
-                        hasCategoryFilter = uiState.selectedCategory != null,
+                        hasEmotionFilter = uiState.selectedEmotion != null,
                         hasBookmarkFilter = uiState.showBookmarkedOnly
                     )
                 }
@@ -394,7 +394,7 @@ fun NoteCard(
 @Composable
 fun EmptyNotesState(
     searchQuery: String,
-    hasCategoryFilter: Boolean,
+    hasEmotionFilter: Boolean,
     hasBookmarkFilter: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -417,14 +417,14 @@ fun EmptyNotesState(
         val titleText = when {
             searchQuery.isNotBlank() -> "No matching notes found"
             hasBookmarkFilter -> "No bookmarked notes"
-            hasCategoryFilter -> "No notes in this category"
+            hasEmotionFilter -> "No notes with this emotion"
             else -> "Your notes feed is empty"
         }
 
         val subtitleText = when {
             searchQuery.isNotBlank() -> "Try searching for another keyword or clearing your query."
             hasBookmarkFilter -> "Star notes to save them in your bookmarked list for quick access."
-            hasCategoryFilter -> "Select 'All' to view entries from all categories."
+            hasEmotionFilter -> "Select 'All' to view entries from all primary emotions."
             else -> "Tap the voice record button below to log your first mood note!"
         }
 

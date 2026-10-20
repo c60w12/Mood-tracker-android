@@ -13,7 +13,7 @@ import com.example.newproject30.MainActivity
 import com.example.newproject30.R
 
 /**
- * BroadcastReceiver triggered at strict 8:00 PM by [AlarmManager].
+ * BroadcastReceiver triggered at strict 8:00 PM by AlarmManager.
  * Displays the Material 3 reminder notification and immediately re-arms the next day's alarm.
  */
 class DailyReminderReceiver : BroadcastReceiver() {
@@ -39,12 +39,28 @@ class DailyReminderReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val voiceIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("EXTRA_START_VOICE", true)
+        }
+        val voicePendingIntent = PendingIntent.getActivity(
+            context,
+            1,
+            voiceIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("Daily Mood Reflection 🌿")
             .setContentText("Take a moment to reflect and log how you're feeling today.")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)
+            .addAction(
+                R.drawable.ic_mic_24,
+                "Voice Note",
+                voicePendingIntent
+            )
             .setAutoCancel(true)
 
         try {

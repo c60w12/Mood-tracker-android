@@ -7,12 +7,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.Serializable
 
 /**
- * Data class representing grouped emotion counts from Room SQL query.
+ * Data class representing grouped primary emotion counts from Room SQL query.
  */
 @Immutable
 @Serializable
 data class EmotionCount(
-    val primaryEmotion: String,
+    val emotion: String,
     val count: Int
 )
 
@@ -29,16 +29,16 @@ data class MoodStats(
 )
 
 /**
- * Room DAO dedicated to targeted SQL aggregation queries for 100% offline analytics.
+ * Room DAO dedicated to targeted SQL aggregation queries for 100% offline primary emotion analytics.
  */
 @Dao
 interface AnalyticsDao {
 
     /**
-     * Aggregates primary emotion counts grouped by emotion name since [sinceTimestamp].
+     * Aggregates primary emotion counts grouped exclusively by primaryEmotion since [sinceTimestamp].
      */
     @Query("""
-        SELECT primaryEmotion, COUNT(*) as count 
+        SELECT primaryEmotion AS emotion, COUNT(*) AS count 
         FROM mood_entries 
         WHERE timestamp >= :sinceTimestamp 
         GROUP BY primaryEmotion 

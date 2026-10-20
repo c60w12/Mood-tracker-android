@@ -1,6 +1,7 @@
 package com.example.newproject30.ui.dashboard
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -33,7 +34,7 @@ private data class AnalyticsTuple(
 )
 
 /**
- * ViewModel responsible for computing streak, 100% offline Room SQL analytics, 14-day stability index, and emotion distribution.
+ * ViewModel responsible for computing streak, 100% offline Room SQL primary emotion analytics, 14-day stability index, and emotion distribution.
  * All computations run strictly on [Dispatchers.IO] to keep the UI thread jank-free.
  */
 class DashboardViewModel(
@@ -58,14 +59,16 @@ class DashboardViewModel(
         val total14 = emotion14.sumOf { it.count }
         val breakdown14 = emotion14.map {
             val pct = if (total14 > 0) it.count.toFloat() / total14 else 0f
-            EmotionBreakdownItem(it.primaryEmotion, it.count, pct)
+            EmotionBreakdownItem(it.emotion, it.count, pct)
         }
 
         val total30 = emotion30.sumOf { it.count }
         val breakdown30 = emotion30.map {
             val pct = if (total30 > 0) it.count.toFloat() / total30 else 0f
-            EmotionBreakdownItem(it.primaryEmotion, it.count, pct)
+            EmotionBreakdownItem(it.emotion, it.count, pct)
         }
+
+        Log.d("ANALYTICS_DEBUG", "Dashboard UI State Primary Emotions: ${breakdown14.map { "${it.emotion}:${it.count}" }}")
 
         val stdDev = if (scores14.size >= 2) {
             val mean = scores14.average()

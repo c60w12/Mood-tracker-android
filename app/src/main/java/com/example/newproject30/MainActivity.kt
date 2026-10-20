@@ -34,19 +34,21 @@ class MainActivity : ComponentActivity() {
             window.isNavigationBarContrastEnforced = false
         }
 
+        val hasExtraStartVoice = intent?.getBooleanExtra("EXTRA_START_VOICE", false) ?: false
         val preferencesRepository = UserPreferencesRepository(applicationContext)
 
         setContent {
-            val isDarkMode by preferencesRepository.isDarkMode.collectAsStateWithLifecycle(
-                initialValue = false
-            )
+            val isDarkMode by preferencesRepository.isDarkMode.collectAsStateWithLifecycle(initialValue = false)
+            val autoStartVoiceOnOpen by preferencesRepository.autoStartVoiceOnOpen.collectAsStateWithLifecycle(initialValue = false)
+
+            val autoStartVoice = hasExtraStartVoice || autoStartVoiceOnOpen
 
             AppTheme(isDarkMode = isDarkMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    MainScaffold()
+                    MainScaffold(autoStartVoice = autoStartVoice)
                 }
             }
         }

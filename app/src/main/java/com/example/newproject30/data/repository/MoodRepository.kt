@@ -58,6 +58,11 @@ interface MoodRepository {
     suspend fun deleteEntryById(id: Long)
 
     /**
+     * Deletes all mood entries from the database.
+     */
+    suspend fun deleteAllEntries()
+
+    /**
      * Retrieves all default and user-created custom emotion & contextual tags.
      */
     fun getAllCustomTags(): Flow<List<CustomTag>>

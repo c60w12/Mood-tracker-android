@@ -1,5 +1,7 @@
 <resources>
-    <string name="app_name">new project3.0</string>
+    <string name="app_name">Mood Journal</string>
+    <string name="shortcut_voice_short">Quick Voice Note</string>
+    <string name="shortcut_voice_long">Instant Hands-Free Voice Note</string>
     <string name="action_go">Go</string>
     <string name="baking_title">Baking with Gemini</string>
     <string name="label_prompt">Prompt</string>
